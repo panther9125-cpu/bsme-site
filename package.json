@@ -1,0 +1,12 @@
+{
+  "name": "bsme-site",
+  "version": "1.0.0",
+  "description": "Kitten Age Gate and Forum",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
