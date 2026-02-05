@@ -9,6 +9,18 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+// DATABASE FIX: Adds the missing "Time" column automatically
+pool.query(`
+  CREATE TABLE IF NOT EXISTS posts (
+    id SERIAL PRIMARY KEY,
+    topic_id INT,
+    content TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+  ALTER TABLE posts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+`).then(() => console.log("Database structure is up to date!"))
+  .catch(err => console.error("Database update error:", err));
+
 app.use(session({
   secret: 'bsme-secret-key',
   resave: false,
