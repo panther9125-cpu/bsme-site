@@ -65,8 +65,8 @@ app.post('/login', (req, res) => {
   const { username, password } = req.body;
   // SET YOUR PASSWORDS HERE
   const admins = {
-    'Ghostrider': 'Ride123!',
-    'Boobs': 'Boobs456!'
+    'Ghostrider': 'Nissan1231',
+    'Boobs': 'dak1231'
   };
 
   if (admins[username] && admins[username] === password) {
