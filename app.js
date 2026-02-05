@@ -1,5 +1,5 @@
 const express = require('express');
-const session = require('express-session'); // NEW: This remembers the user
+const session = require('express-session');
 const { Pool } = require('pg');
 const app = express();
 const port = process.env.PORT || 10000;
@@ -9,7 +9,6 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// 1. SET UP THE SESSION (The "Memory" of the site)
 app.use(session({
   secret: 'bsme-secret-key',
   resave: false,
@@ -18,25 +17,20 @@ app.use(session({
 
 app.use(express.urlencoded({ extended: true }));
 
-// 2. THE GATEKEEPER FUNCTION
+// GATEKEEPER
 const checkAge = (req, res, next) => {
-  if (req.session.isAdult) {
-    next(); // They clicked the button, let them through
-  } else {
-    res.redirect('/'); // Not verified? Kick them back to the gate
-  }
+  if (req.session.isAdult) { next(); } 
+  else { res.redirect('/'); }
 };
 
-// THE AGE GATE PAGE
+// AGE GATE
 app.get('/', (req, res) => {
   res.send(`
     <html>
     <body style="background-color: #0b0e14; color: white; text-align: center; font-family: sans-serif; padding-top: 100px;">
         <div style="border: 2px solid #333; display: inline-block; padding: 40px; border-radius: 15px; background: rgba(255,255,255,0.05);">
             <h1 style="color: #4CAF50;">STOP! Verification Required</h1>
-            <img src="https://placecats.com/300/200" style="border-radius: 10px; margin: 20px; border: 1px solid #444;">
             <p>You must be 18 or older to view the topics.</p>
-            <br>
             <form action="/verify-age" method="POST">
                 <button type="submit" style="padding: 15px 30px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">I am 18+ - ENTER FORUM</button>
             </form>
@@ -46,13 +40,35 @@ app.get('/', (req, res) => {
   `);
 });
 
-// ACTION: VERIFY AGE
 app.post('/verify-age', (req, res) => {
-  req.session.isAdult = true; // Set the "Memory" to true
+  req.session.isAdult = true;
   res.redirect('/forum');
 });
 
-// THE MAIN FORUM INDEX (Now Protected by checkAge)
+// LOGIN PAGE (For Admins)
+app.get('/login', (req, res) => {
+  res.send(`
+    <body style="background-color: #0b0e14; color: white; font-family: sans-serif; text-align: center; padding-top: 50px;">
+        <h2>Admin Login</h2>
+        <form action="/login" method="POST">
+            <input type="text" name="username" placeholder="Username" style="padding: 10px; border-radius: 5px; border: 1px solid #333; background: #0d1117; color: white;">
+            <button type="submit" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">Login</button>
+        </form>
+    </body>
+  `);
+});
+
+app.post('/login', (req, res) => {
+  const { username } = req.body;
+  if (username === 'Ghostrider' || username === 'Boobs') {
+    req.session.user = username;
+    res.redirect('/forum');
+  } else {
+    res.send('Invalid Admin Username. <a href="/login" style="color: #4CAF50;">Try again</a>');
+  }
+});
+
+// FORUM INDEX
 app.get('/forum', checkAge, (req, res) => {
     const topics = [
         "IMPORTANT INFORMATION ABOUT THIS SITE (READ ONLY)", "Complaint Department", "Suggestion Box", "Karens", "Cheaters + Narcissists", 
@@ -74,7 +90,10 @@ app.get('/forum', checkAge, (req, res) => {
     res.send(`
         <html>
         <body style="background-color: #0b0e14; color: white; font-family: sans-serif; padding: 40px;">
-            <h1 style="color: #4CAF50;">🌌 BSMeSomeMorePlease Forums</h1>
+            <div style="display: flex; justify-content: space-between;">
+                <h1 style="color: #4CAF50;">🌌 BSMeSomeMorePlease Forums</h1>
+                ${req.session.user ? `<span style="color: #888;">Logged in as: <b>${req.session.user}</b></span>` : `<a href="/login" style="color: #888; text-decoration: none;">Admin Login</a>`}
+            </div>
             <hr style="border: 0.5px solid #333;">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                 <ul style="list-style: none; padding: 0;">${topicListHtml}</ul>
@@ -84,9 +103,51 @@ app.get('/forum', checkAge, (req, res) => {
     `);
 });
 
-// Protect Topic Pages too
+// TOPIC PAGE
 app.get('/topic/:id', checkAge, async (req, res) => {
-    // ... (rest of your topic code from before)
+    const topicId = req.params.id;
+    const isAdmin = (req.session.user === 'Ghostrider' || req.session.user === 'Boobs');
+
+    let messagesHtml = '<p style="color: #666;">No messages yet.</p>';
+    try {
+        const result = await pool.query('SELECT content FROM posts WHERE topic_id = $1 ORDER BY id DESC', [topicId]);
+        if (result.rows.length > 0) {
+            messagesHtml = result.rows.map(row => `<div style="border-bottom: 1px solid #333; padding: 10px; margin-bottom: 10px;">${row.content}</div>`).join('');
+        }
+    } catch (err) { console.error(err); }
+
+    // Logic: Only Admins can post to Topic #1. Everyone else can post to everything else.
+    let showPostBox = true;
+    if (topicId === "1" && !isAdmin) { showPostBox = false; }
+
+    const postBox = showPostBox 
+        ? `<form action="/post/${topicId}" method="POST" style="background: #161b22; padding: 20px; border-radius: 10px; border: 1px solid #30363d; max-width: 600px;">
+                <textarea name="content" placeholder="Type your message..." style="width: 100%; height: 80px; background: #0d1117; color: white; border: 1px solid #30363d; padding: 10px;"></textarea>
+                <br><br>
+                <button type="submit" style="background: #238636; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Post Message</button>
+           </form>`
+        : `<p style="color: #f44336; font-weight: bold;">[ READ ONLY: Only Ghostrider and Boobs can post here ]</p>`;
+
+    res.send(`
+        <html>
+        <body style="background-color: #0b0e14; color: white; font-family: sans-serif; padding: 40px;">
+            <h1 style="color: #4CAF50;">Topic #${topicId}</h1>
+            <div style="background: rgba(255,255,255,0.02); padding: 20px; border-radius: 10px; margin-bottom: 20px;">${messagesHtml}</div>
+            ${postBox}
+            <br>
+            <button onclick="window.location.href='/forum'" style="background: none; border: 1px solid #333; color: #888; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Back to Forum</button>
+        </body>
+        </html>
+    `);
+});
+
+app.post('/post/:id', async (req, res) => {
+    const isAdmin = (req.session.user === 'Ghostrider' || req.session.user === 'Boobs');
+    if (req.params.id === "1" && !isAdmin) { return res.redirect('/topic/1'); }
+    
+    try { await pool.query('INSERT INTO posts (topic_id, content) VALUES ($1, $2)', [req.params.id, req.body.content]); } 
+    catch (err) { console.error(err); }
+    res.redirect('/topic/' + req.params.id);
 });
 
 app.listen(port, () => { console.log('Server running on port ' + port); });
