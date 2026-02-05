@@ -1,6 +1,16 @@
 const express = require('express');
+const { Pool } = require('pg');
 const app = express();
 const port = process.env.PORT || 10000;
+
+// 1. CONNECT TO YOUR RENDER DATABASE
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+// Middleware to handle form data
+app.use(express.urlencoded({ extended: true }));
 
 // THE AGE GATE
 app.get('/', (req, res) => {
@@ -21,18 +31,7 @@ app.get('/', (req, res) => {
 
 // THE MAIN FORUM INDEX
 app.get('/forum', (req, res) => {
-    const topics = [
-        "Announcements & Rules", "New Member Introductions", "General Lounge Chat", "Suggestion Box", "Help & Support",
-        "Cute Photo Gallery", "Adoption Resources", "Training Tips", "Health & Nutrition", "Senior Cat Care",
-        "Indoor Gardening", "Strains & Reviews", "Chill Music Playlists", "Philosophy & Deep Thoughts", "Midnight Snacks & Recipes",
-        "PC Master Race", "Console War Zone", "Indie Game Gems", "Coding & Web Dev", "AI & Future Tech",
-        "Digital Illustration", "Photography", "Writing & Poetry", "Music Production", "DIY Crafts",
-        "Movies & Cinema", "Anime & Manga", "TV Series Binging", "Book Club", "Podcast Recommendations",
-        "Astronomy & NASA News", "Physics Explored", "Biology & Nature", "History Mysteries", "Future of Humanity",
-        "Travel Stories", "Fitness & Health", "Mental Wellness", "Fashion & Style", "Financial Freedom",
-        "Unpopular Opinions", "Paranormal & Cryptids", "Conspiracy Corner", "Meme Repository", "The Void"
-    ];
-
+    const topics = ["Announcements", "General Chat", "Kitten Corner", "The Greenhouse", "Gaming", "Tech", "Creative Arts", "Movies", "Anime", "Space", "Lifestyle", "The Void"];
     let topicListHtml = topics.map((t, i) => `
         <li style="margin-bottom: 10px;">
             <a href="/topic/${i + 1}" style="color: #4CAF50; text-decoration: none; font-weight: bold;">${i + 1}. ${t}</a>
@@ -44,42 +43,63 @@ app.get('/forum', (req, res) => {
         <body style="background-color: #0b0e14; color: white; font-family: sans-serif; padding: 40px;">
             <h1 style="color: #4CAF50;">🌌 BSMeSomeMorePlease Forums</h1>
             <hr style="border: 0.5px solid #333;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
-                <ul style="list-style: none; padding: 0;">${topicListHtml}</ul>
-            </div>
-            <br>
-            <button onclick="window.location.href='/'" style="background: #333; color: #888; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Back to Gate</button>
+            <ul style="list-style: none; padding: 0;">${topicListHtml}</ul>
         </body>
         </html>
     `);
 });
 
-// INDIVIDUAL TOPIC PAGE WITH POST BOX
-app.get('/topic/:id', (req, res) => {
+// INDIVIDUAL TOPIC PAGE (NOW WITH LIVE MESSAGES)
+app.get('/topic/:id', async (req, res) => {
+    const topicId = req.params.id;
+    
+    // Fetch messages from database
+    let messagesHtml = '<p style="color: #666;">No messages yet. Be the first!</p>';
+    try {
+        const result = await pool.query('SELECT content FROM posts WHERE topic_id = $1 ORDER BY id DESC', [topicId]);
+        if (result.rows.length > 0) {
+            messagesHtml = result.rows.map(row => `
+                <div style="border-bottom: 1px solid #333; padding: 10px; margin-bottom: 10px;">
+                    ${row.content}
+                </div>
+            `).join('');
+        }
+    } catch (err) {
+        console.error(err);
+    }
+
     res.send(`
         <html>
         <body style="background-color: #0b0e14; color: white; font-family: sans-serif; padding: 40px;">
-            <h1 style="color: #4CAF50;">Topic #${req.params.id} Discussion</h1>
-            <div style="border: 1px solid #333; padding: 20px; border-radius: 10px; background: rgba(255,255,255,0.02); margin-bottom: 20px;">
-                <p>Welcome to the discussion. Share your thoughts below!</p>
+            <h1 style="color: #4CAF50;">Topic #${topicId} Discussion</h1>
+            <div style="background: rgba(255,255,255,0.02); padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                ${messagesHtml}
             </div>
 
-            <div style="background: #161b22; padding: 20px; border-radius: 10px; border: 1px solid #30363d; max-width: 600px;">
-                <h4 style="margin-top: 0;">Leave a Reply</h4>
-                <textarea placeholder="What's on your mind?" style="width: 100%; height: 100px; background: #0d1117; color: white; border: 1px solid #30363d; border-radius: 5px; padding: 10px; font-family: inherit;"></textarea>
+            <form action="/post/${topicId}" method="POST" style="background: #161b22; padding: 20px; border-radius: 10px; border: 1px solid #30363d; max-width: 600px;">
+                <textarea name="content" placeholder="Type your message..." style="width: 100%; height: 80px; background: #0d1117; color: white; border: 1px solid #30363d; padding: 10px;"></textarea>
                 <br><br>
-                <button onclick="alert('Message Sent (Demo Mode)')" style="background: #238636; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">Post Message</button>
-            </div>
-
+                <button type="submit" style="background: #238636; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Post Message</button>
+            </form>
             <br>
-            <button onclick="window.location.href='/forum'" style="background: none; border: 1px solid #333; color: #888; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Return to Forum List</button>
+            <button onclick="window.location.href='/forum'" style="background: none; border: 1px solid #333; color: #888; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Back to Forum</button>
         </body>
         </html>
     `);
 });
 
-app.listen(port, () => {
-    console.log('Server is running on port ' + port);
+// ACTION: SAVE MESSAGE TO DATABASE
+app.post('/post/:id', async (req, res) => {
+    const topicId = req.params.id;
+    const content = req.body.content;
+    try {
+        await pool.query('INSERT INTO posts (topic_id, content) VALUES ($1, $2)', [topicId, content]);
+    } catch (err) {
+        console.error(err);
+    }
+    res.redirect('/topic/' + topicId);
 });
-    console.log('Server is running on port ' + port);
+
+app.listen(port, () => {
+    console.log('Server running on port ' + port);
 });
