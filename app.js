@@ -18,7 +18,7 @@ app.use(session({
 app.use(express.urlencoded({ extended: true }));
 
 // KITTEN STYLING (The "Purr-fect" Background)
-const kittenBG = `style="background-image: url('https://www.placekitten.com/200/200'); background-repeat: repeat; background-attachment: fixed; color: white; font-family: sans-serif;"`;
+const kittenBG = `style="background-image: url('https://placecats.com/300/300'); background-repeat: repeat; background-attachment: fixed; color: white; font-family: sans-serif;"`;
 
 // DATABASE STRUCTURE CHECK
 pool.query(`
@@ -42,11 +42,12 @@ app.get('/', (req, res) => {
   res.send(`
     <html>
     <body ${kittenBG}>
-        <div style="background: rgba(0,0,0,0.8); width: 100%; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
-            <div style="border: 4px solid #4CAF50; padding: 40px; border-radius: 15px; background: #0b0e14;">
+        <div style="background: rgba(0,0,0,0.85); width: 100%; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+            <div style="border: 4px solid #4CAF50; padding: 40px; border-radius: 15px; background: #0b0e14; max-width: 500px;">
                 <h1 style="color: #4CAF50;">🛑 STOP! 🛑</h1>
-                <p style="font-size: 1.2em;">This forum is restricted to ages <b>19 and older</b>.</p>
-                <div style="margin-top: 20px;">
+                <p style="font-size: 1.3em;">This forum is restricted to ages <b>19 and older</b>.</p>
+                <p style="color: #888;">Younger users will be sent to Sesame Street.</p>
+                <div style="margin-top: 30px;">
                     <form action="/verify-age" method="POST" style="display: inline;">
                         <button type="submit" style="padding: 15px 30px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-right: 10px;">I AM 19+</button>
                     </form>
@@ -106,7 +107,7 @@ app.get('/forum', checkAge, async (req, res) => {
 
         let topicListHtml = topics.map((t, i) => {
             const topicNum = i + 1;
-            return `<li style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; padding-right: 20px; background: rgba(0,0,0,0.6); padding: 5px; border-radius: 4px;">
+            return `<li style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; padding-right: 20px; background: rgba(0,0,0,0.65); padding: 5px; border-radius: 4px; border: 1px solid #222;">
                 <a href="/topic/${topicNum}" style="color: #4CAF50; text-decoration: none; font-weight: bold; font-size: 0.9em;">${topicNum}. ${t}</a>
                 <span style="background: #333; color: #00ffff; font-size: 0.7em; padding: 2px 6px; border-radius: 8px;">${countMap[topicNum] || 0}</span>
             </li>`;
@@ -116,9 +117,15 @@ app.get('/forum', checkAge, async (req, res) => {
             <html>
             <body ${kittenBG}>
                 <div style="background: rgba(0,0,0,0.5); min-height: 100vh; padding: 20px 40px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <h1 style="color: #4CAF50; font-size: 1.8em; text-shadow: 2px 2px black;">🌌 BSMeSomeMorePlease</h1>
-                        <div>${req.session.user ? `<span style="color: #888;">${req.session.user}</span> <a href="/logout" style="color: #f44336; margin-left:10px;">Logout</a>` : `<a href="/login" style="color: #888;">Admin</a>`}</div>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div>
+                            <h1 style="color: #4CAF50; font-size: 1.8em; text-shadow: 2px 2px black; margin: 0;">🌌 BSMeSomeMorePlease</h1>
+                            <p style="color: #888; font-size: 0.9em;">Refresh for a new kitten of the hour!</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <img src="https://placecats.com/150/100?t=${Date.now()}" style="border: 2px solid #4CAF50; border-radius: 10px; margin-bottom: 10px;">
+                            <div>${req.session.user ? `<span style="color: #888;">${req.session.user}</span> <a href="/logout" style="color: #f44336; margin-left:10px;">Logout</a>` : `<a href="/login" style="color: #888;">Admin</a>`}</div>
+                        </div>
                     </div>
                     <hr style="border: 0.5px solid #333; margin-bottom: 20px;">
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px 40px;">
@@ -138,11 +145,10 @@ app.get('/topic/:id', checkAge, async (req, res) => {
     let messagesHtml = '<p style="color: #ccc;">No messages yet.</p>';
     
     try {
-        // TIMEZONE ADJUSTED (Eastern Time)
         const result = await pool.query("SELECT id, heading, content, TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'US/Central', 'Mon DD, HH:MI AM') as time FROM posts WHERE topic_id = $1 ORDER BY id DESC", [topicId]);
         if (result.rows.length > 0) {
             messagesHtml = result.rows.map(row => `
-                <div style="border: 1px solid #30363d; padding: 10px; margin-bottom: 8px; background: rgba(22, 27, 34, 0.9); border-radius: 6px;">
+                <div style="border: 1px solid #30363d; padding: 10px; margin-bottom: 8px; background: rgba(22, 27, 34, 0.92); border-radius: 6px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 5px;">
                         <h4 style="color: #00ffff; margin: 0; font-size: 0.9em;">${row.heading || 'GENERAL'}</h4>
                         <div style="display: flex; align-items: center; gap: 10px;">
@@ -156,8 +162,8 @@ app.get('/topic/:id', checkAge, async (req, res) => {
         }
     } catch (err) { console.error(err); }
 
-    const postBox = (topicId === "1" && !isAdmin) ? `<p style="color: #f44336;">[ READ ONLY ]</p>` : `
-        <form action="/post/${topicId}" method="POST" style="background: rgba(22, 27, 34, 0.9); padding: 12px; border-radius: 8px; border: 1px solid #00ffff; max-width: 500px; margin-top: 20px;">
+    const postBox = (topicId === "1" && !isAdmin) ? `<p style="color: #f44336; background: rgba(0,0,0,0.5); padding: 5px;">[ READ ONLY ]</p>` : `
+        <form action="/post/${topicId}" method="POST" style="background: rgba(22, 27, 34, 0.92); padding: 12px; border-radius: 8px; border: 1px solid #00ffff; max-width: 500px; margin-top: 20px;">
             <input type="text" name="heading" placeholder="Heading..." style="width: 100%; padding: 6px; margin-bottom: 6px; background: #0d1117; color: white; border: 1px solid #333; border-radius: 4px;">
             <textarea name="content" placeholder="Message..." style="width: 100%; height: 60px; background: #0d1117; color: white; border: 1px solid #333; padding: 6px; border-radius: 4px;"></textarea>
             <button type="submit" style="background: #238636; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-top: 6px; font-weight: bold;">Post</button>
@@ -168,7 +174,7 @@ app.get('/topic/:id', checkAge, async (req, res) => {
         <body ${kittenBG}>
             <div style="background: rgba(0,0,0,0.5); min-height: 100vh; padding: 20px 40px;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <h2 style="color: #4CAF50; margin: 0;">Topic #${topicId}</h2>
+                    <h2 style="color: #4CAF50; margin: 0; text-shadow: 1px 1px black;">Topic #${topicId}</h2>
                     <button onclick="window.location.href='/forum'" style="background: #333; border: 1px solid #555; color: white; padding: 5px 15px; border-radius: 4px; cursor: pointer;">Back</button>
                 </div>
                 <hr style="border: 0.5px solid #333; margin: 15px 0;">
