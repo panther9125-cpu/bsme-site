@@ -212,4 +212,14 @@ app.post('/post/:id', async (req, res) => {
     res.redirect('/topic/' + req.params.id);
 });
 
-app.post('/delete-post/:postId', async (req, res
+app.post('/delete-post/:postId', async (req, res) => {
+    const user = req.session.username;
+    if (!user) return res.redirect('/login');
+    const post = await pool.query('SELECT author FROM posts WHERE id = $1', [req.params.postId]);
+    if (post.rows[0] && (post.rows[0].author === user || user === "Ghostrider")) {
+        await pool.query('DELETE FROM posts WHERE id = $1', [req.params.postId]);
+    }
+    res.redirect('/topic/' + req.body.topicId);
+});
+
+app.listen(port, () => console.log('Server running on ' + port));
