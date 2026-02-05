@@ -63,12 +63,7 @@ app.get('/login', (req, res) => {
 
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
-  // SET YOUR PASSWORDS HERE
-  const admins = {
-    'Ghostrider': 'Nissan1231',
-    'Boobs': 'dak1231'
-  };
-
+  const admins = { 'Ghostrider': 'Ride123!', 'Boobs': 'Boobs456!' };
   if (admins[username] && admins[username] === password) {
     req.session.user = username;
     res.redirect('/forum');
@@ -119,16 +114,21 @@ app.get('/forum', checkAge, (req, res) => {
     `);
 });
 
-// TOPIC PAGE
+// TOPIC PAGE WITH DELETE BUTTON
 app.get('/topic/:id', checkAge, async (req, res) => {
     const topicId = req.params.id;
     const isAdmin = (req.session.user === 'Ghostrider' || req.session.user === 'Boobs');
 
     let messagesHtml = '<p style="color: #666;">No messages yet.</p>';
     try {
-        const result = await pool.query('SELECT content FROM posts WHERE topic_id = $1 ORDER BY id DESC', [topicId]);
+        const result = await pool.query('SELECT id, content FROM posts WHERE topic_id = $1 ORDER BY id DESC', [topicId]);
         if (result.rows.length > 0) {
-            messagesHtml = result.rows.map(row => `<div style="border-bottom: 1px solid #333; padding: 10px; margin-bottom: 10px;">${row.content}</div>`).join('');
+            messagesHtml = result.rows.map(row => `
+                <div style="border-bottom: 1px solid #333; padding: 10px; margin-bottom: 10px; display: flex; justify-content: space-between;">
+                    <div>${row.content}</div>
+                    ${isAdmin ? `<form action="/delete-post/${row.id}" method="POST" style="margin: 0;"><input type="hidden" name="topicId" value="${topicId}"><button type="submit" style="background: none; border: none; color: #f44336; cursor: pointer; font-size: 0.8em;">[Delete]</button></form>` : ''}
+                </div>
+            `).join('');
         }
     } catch (err) { console.error(err); }
 
@@ -154,6 +154,17 @@ app.get('/topic/:id', checkAge, async (req, res) => {
         </body>
         </html>
     `);
+});
+
+// ACTION: DELETE POST
+app.post('/delete-post/:postId', async (req, res) => {
+    const isAdmin = (req.session.user === 'Ghostrider' || req.session.user === 'Boobs');
+    if (!isAdmin) return res.status(403).send('Unauthorized');
+    
+    try {
+        await pool.query('DELETE FROM posts WHERE id = $1', [req.params.postId]);
+    } catch (err) { console.error(err); }
+    res.redirect('/topic/' + req.body.topicId);
 });
 
 app.post('/post/:id', async (req, res) => {
