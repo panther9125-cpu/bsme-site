@@ -8,7 +8,15 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
-
+// AUTO-CREATE TABLE ON STARTUP
+pool.query(`
+  CREATE TABLE IF NOT EXISTS posts (
+    id SERIAL PRIMARY KEY,
+    topic_id INT,
+    content TEXT
+  );
+`).then(() => console.log("Database table is ready!"))
+  .catch(err => console.error("Table error:", err));
 // Middleware to handle form data
 app.use(express.urlencoded({ extended: true }));
 
