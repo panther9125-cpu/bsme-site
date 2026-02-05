@@ -54,23 +54,32 @@ app.get('/forum', (req, res) => {
     `);
 });
 
-// THE INDIVIDUAL TOPIC PAGE (DYNAMIC)
+// INDIVIDUAL TOPIC PAGE WITH POST BOX
 app.get('/topic/:id', (req, res) => {
     res.send(`
         <html>
-        <body style="background-color: #0b0e14; color: white; font-family: sans-serif; padding: 40px; text-align: center;">
-            <h1 style="color: #4CAF50;">Topic #${req.params.id}</h1>
-            <div style="border: 1px solid #333; padding: 50px; border-radius: 10px; background: rgba(255,255,255,0.02);">
-                <p>Welcome to the discussion for this section.</p>
-                <p style="color: #666;">[ Post Database Loading... ]</p>
+        <body style="background-color: #0b0e14; color: white; font-family: sans-serif; padding: 40px;">
+            <h1 style="color: #4CAF50;">Topic #${req.params.id} Discussion</h1>
+            <div style="border: 1px solid #333; padding: 20px; border-radius: 10px; background: rgba(255,255,255,0.02); margin-bottom: 20px;">
+                <p>Welcome to the discussion. Share your thoughts below!</p>
             </div>
+
+            <div style="background: #161b22; padding: 20px; border-radius: 10px; border: 1px solid #30363d; max-width: 600px;">
+                <h4 style="margin-top: 0;">Leave a Reply</h4>
+                <textarea placeholder="What's on your mind?" style="width: 100%; height: 100px; background: #0d1117; color: white; border: 1px solid #30363d; border-radius: 5px; padding: 10px; font-family: inherit;"></textarea>
+                <br><br>
+                <button onclick="alert('Message Sent (Demo Mode)')" style="background: #238636; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">Post Message</button>
+            </div>
+
             <br>
-            <button onclick="window.location.href='/forum'" style="background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Return to Forum List</button>
+            <button onclick="window.location.href='/forum'" style="background: none; border: 1px solid #333; color: #888; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Return to Forum List</button>
         </body>
         </html>
     `);
 });
 
 app.listen(port, () => {
+    console.log('Server is running on port ' + port);
+});
     console.log('Server is running on port ' + port);
 });
