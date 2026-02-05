@@ -9,7 +9,15 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// DATABASE FIX: Adds the missing "Time" column automatically
+app.use(session({
+  secret: 'bsme-secret-key',
+  resave: false,
+  saveUninitialized: true
+}));
+
+app.use(express.urlencoded({ extended: true }));
+
+// DATABASE STRUCTURE CHECK
 pool.query(`
   CREATE TABLE IF NOT EXISTS posts (
     id SERIAL PRIMARY KEY,
@@ -19,17 +27,8 @@ pool.query(`
   );
   ALTER TABLE posts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 `).then(() => console.log("Database structure is up to date!"))
-  .catch(err => console.error("Database update error:", err));
+  .catch(err => console.error("Database error:", err));
 
-app.use(session({
-  secret: 'bsme-secret-key',
-  resave: false,
-  saveUninitialized: true
-}));
-
-app.use(express.urlencoded({ extended: true }));
-
-// GATEKEEPER
 const checkAge = (req, res, next) => {
   if (req.session.isAdult) { next(); } 
   else { res.redirect('/'); }
@@ -57,7 +56,7 @@ app.post('/verify-age', (req, res) => {
   res.redirect('/forum');
 });
 
-// LOGIN PAGE
+// ADMIN LOGIN
 app.get('/login', (req, res) => {
   res.send(`
     <body style="background-color: #0b0e14; color: white; font-family: sans-serif; text-align: center; padding-top: 50px;">
@@ -75,17 +74,12 @@ app.get('/login', (req, res) => {
 
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
-  // --- SET YOUR PASSWORDS HERE ---
-  const admins = { 
-    'Ghostrider': '639.771.161.panther', 
-    'Boobs': 'dak1231' 
-  };
-  
+  const admins = { 'Ghostrider': 'Ride123!', 'Boobs': 'Boobs456!' };
   if (admins[username] && admins[username] === password) {
     req.session.user = username;
     res.redirect('/forum');
   } else {
-    res.send('Invalid Credentials. Note: Names are case-sensitive. <a href="/login" style="color: #4CAF50;">Try again</a>');
+    res.send('Invalid Credentials. <a href="/login" style="color: #4CAF50;">Try again</a>');
   }
 });
 
@@ -94,8 +88,8 @@ app.get('/logout', (req, res) => {
   res.redirect('/forum');
 });
 
-// FORUM INDEX
-app.get('/forum', checkAge, (req, res) => {
+// FORUM INDEX WITH COUNTS
+app.get('/forum', checkAge, async (req, res) => {
     const topics = [
         "IMPORTANT INFORMATION ABOUT THIS SITE (READ ONLY)", "Complaint Department", "Suggestion Box", "Karens", "Cheaters + Narcissists", 
         "Stupidity is Abundant", "Government + Politics", "Liberals", "Sports", "Human and AI Call Takers", "Bullies", "Generations", "Commercials", 
@@ -107,39 +101,48 @@ app.get('/forum', checkAge, (req, res) => {
         "KIP: Knowledge is Power", "People in General and All Their Silly Quirks", "Anything Interesting", "All Other BS Not Listed"
     ];
 
-    let topicListHtml = topics.map((t, i) => `
-        <li style="margin-bottom: 10px;">
-            <a href="/topic/${i + 1}" style="color: #4CAF50; text-decoration: none; font-weight: bold;">${i + 1}. ${t}</a>
-        </li>
-    `).join('');
+    try {
+        const counts = await pool.query('SELECT topic_id, COUNT(*) as total FROM posts GROUP BY topic_id');
+        const countMap = {};
+        counts.rows.forEach(r => countMap[r.topic_id] = r.total);
 
-    res.send(`
-        <html>
-        <body style="background-color: #0b0e14; color: white; font-family: sans-serif; padding: 40px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h1 style="color: #4CAF50;">🌌 BSMeSomeMorePlease Forums</h1>
-                <div>
-                    ${req.session.user ? `<span style="color: #888; margin-right: 15px;">User: <b>${req.session.user}</b></span> <a href="/logout" style="color: #f44336; text-decoration: none; font-size: 0.8em;">Logout</a>` : `<a href="/login" style="color: #888; text-decoration: none;">Admin Login</a>`}
+        let topicListHtml = topics.map((t, i) => {
+            const topicNum = i + 1;
+            const msgCount = countMap[topicNum] || 0;
+            return `
+                <li style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; padding-right: 20px;">
+                    <a href="/topic/${topicNum}" style="color: #4CAF50; text-decoration: none; font-weight: bold;">${topicNum}. ${t}</a>
+                    <span style="background: #333; color: #888; font-size: 0.7em; padding: 2px 8px; border-radius: 10px;">${msgCount} posts</span>
+                </li>
+            `;
+        }).join('');
+
+        res.send(`
+            <html>
+            <body style="background-color: #0b0e14; color: white; font-family: sans-serif; padding: 40px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h1 style="color: #4CAF50;">🌌 BSMeSomeMorePlease Forums</h1>
+                    <div>
+                        ${req.session.user ? `<span style="color: #888; margin-right: 15px;">User: <b>${req.session.user}</b></span> <a href="/logout" style="color: #f44336; text-decoration: none;">Logout</a>` : `<a href="/login" style="color: #888; text-decoration: none;">Admin Login</a>`}
+                    </div>
                 </div>
-            </div>
-            <hr style="border: 0.5px solid #333;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                <ul style="list-style: none; padding: 0;">${topicListHtml}</ul>
-            </div>
-        </body>
-        </html>
-    `);
+                <hr style="border: 0.5px solid #333; margin-bottom: 30px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px 40px;">
+                    <ul style="list-style: none; padding: 0;">${topicListHtml}</ul>
+                </div>
+            </body>
+            </html>
+        `);
+    } catch (err) { console.error(err); res.send("Error loading forum."); }
 });
 
-// TOPIC PAGE WITH TIMESTAMPS & DELETE
+// TOPIC PAGE
 app.get('/topic/:id', checkAge, async (req, res) => {
     const topicId = req.params.id;
     const isAdmin = (req.session.user === 'Ghostrider' || req.session.user === 'Boobs');
-
     let messagesHtml = '<p style="color: #666;">No messages yet.</p>';
     try {
-        // Updated query to include a human-readable timestamp
-        const result = await pool.query("SELECT id, content, TO_CHAR(created_at, 'Mon DD, YYYY HH:MI AM') as time FROM posts WHERE topic_id = $1 ORDER BY id DESC", [topicId]);
+        const result = await pool.query("SELECT id, content, TO_CHAR(created_at, 'Mon DD, HH:MI AM') as time FROM posts WHERE topic_id = $1 ORDER BY id DESC", [topicId]);
         if (result.rows.length > 0) {
             messagesHtml = result.rows.map(row => `
                 <div style="border-bottom: 1px solid #333; padding: 10px; margin-bottom: 10px;">
@@ -153,15 +156,13 @@ app.get('/topic/:id', checkAge, async (req, res) => {
         }
     } catch (err) { console.error(err); }
 
-    let showPostBox = (topicId === "1" && !isAdmin) ? false : true;
-
-    const postBox = showPostBox 
-        ? `<form action="/post/${topicId}" method="POST" style="background: #161b22; padding: 20px; border-radius: 10px; border: 1px solid #30363d; max-width: 600px;">
+    const postBox = (topicId === "1" && !isAdmin) 
+        ? `<p style="color: #f44336; font-weight: bold;">[ READ ONLY: Only Ghostrider and Boobs can post here ]</p>`
+        : `<form action="/post/${topicId}" method="POST" style="background: #161b22; padding: 20px; border-radius: 10px; border: 1px solid #30363d; max-width: 600px;">
                 <textarea name="content" placeholder="Type your message..." style="width: 100%; height: 80px; background: #0d1117; color: white; border: 1px solid #30363d; padding: 10px;"></textarea>
                 <br><br>
                 <button type="submit" style="background: #238636; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">Post Message</button>
-           </form>`
-        : `<p style="color: #f44336; font-weight: bold;">[ READ ONLY: Only Ghostrider and Boobs can post here ]</p>`;
+           </form>`;
 
     res.send(`
         <html>
@@ -176,28 +177,17 @@ app.get('/topic/:id', checkAge, async (req, res) => {
     `);
 });
 
-// ACTION: DELETE POST
 app.post('/delete-post/:postId', async (req, res) => {
     if (!(req.session.user === 'Ghostrider' || req.session.user === 'Boobs')) return res.status(403).send('Unauthorized');
     try { await pool.query('DELETE FROM posts WHERE id = $1', [req.params.postId]); } catch (err) { console.error(err); }
     res.redirect('/topic/' + req.body.topicId);
 });
 
-// ACTION: POST MESSAGE
 app.post('/post/:id', async (req, res) => {
     const isAdmin = (req.session.user === 'Ghostrider' || req.session.user === 'Boobs');
     if (req.params.id === "1" && !isAdmin) { return res.redirect('/topic/1'); }
-    try { 
-        // We added created_at NOW() to automatically stamp the time
-        await pool.query('INSERT INTO posts (topic_id, content, created_at) VALUES ($1, $2, NOW())', [req.params.id, req.body.content]); 
-    } catch (err) { 
-        // If the column doesn't exist yet, we fix it automatically
-        if (err.message.includes("column \"created_at\" does not exist")) {
-            await pool.query('ALTER TABLE posts ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
-            await pool.query('INSERT INTO posts (topic_id, content, created_at) VALUES ($1, $2, NOW())', [req.params.id, req.body.content]);
-        }
-        console.error(err); 
-    }
+    try { await pool.query('INSERT INTO posts (topic_id, content) VALUES ($1, $2)', [req.params.id, req.body.content]); } 
+    catch (err) { console.error(err); }
     res.redirect('/topic/' + req.params.id);
 });
 
