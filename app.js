@@ -8,6 +8,7 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
+
 // AUTO-CREATE TABLE ON STARTUP
 pool.query(`
   CREATE TABLE IF NOT EXISTS posts (
