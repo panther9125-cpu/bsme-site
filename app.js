@@ -45,27 +45,41 @@ app.post('/verify-age', (req, res) => {
   res.redirect('/forum');
 });
 
-// LOGIN PAGE (For Admins)
+// LOGIN PAGE
 app.get('/login', (req, res) => {
   res.send(`
     <body style="background-color: #0b0e14; color: white; font-family: sans-serif; text-align: center; padding-top: 50px;">
         <h2>Admin Login</h2>
-        <form action="/login" method="POST">
-            <input type="text" name="username" placeholder="Username" style="padding: 10px; border-radius: 5px; border: 1px solid #333; background: #0d1117; color: white;">
-            <button type="submit" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">Login</button>
+        <form action="/login" method="POST" style="display: inline-block; text-align: left; background: #161b22; padding: 20px; border-radius: 10px;">
+            <label>Username:</label><br>
+            <input type="text" name="username" style="margin-bottom: 10px; padding: 8px; border-radius: 5px; border: 1px solid #333; background: #0d1117; color: white;"><br>
+            <label>Password:</label><br>
+            <input type="password" name="password" style="margin-bottom: 20px; padding: 8px; border-radius: 5px; border: 1px solid #333; background: #0d1117; color: white;"><br>
+            <button type="submit" style="width: 100%; padding: 10px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Login</button>
         </form>
     </body>
   `);
 });
 
 app.post('/login', (req, res) => {
-  const { username } = req.body;
-  if (username === 'Ghostrider' || username === 'Boobs') {
+  const { username, password } = req.body;
+  // SET YOUR PASSWORDS HERE
+  const admins = {
+    'Ghostrider': 'Ride123!',
+    'Boobs': 'Boobs456!'
+  };
+
+  if (admins[username] && admins[username] === password) {
     req.session.user = username;
     res.redirect('/forum');
   } else {
-    res.send('Invalid Admin Username. <a href="/login" style="color: #4CAF50;">Try again</a>');
+    res.send('Invalid Credentials. <a href="/login" style="color: #4CAF50;">Try again</a>');
   }
+});
+
+app.get('/logout', (req, res) => {
+  req.session.user = null;
+  res.redirect('/forum');
 });
 
 // FORUM INDEX
@@ -90,9 +104,11 @@ app.get('/forum', checkAge, (req, res) => {
     res.send(`
         <html>
         <body style="background-color: #0b0e14; color: white; font-family: sans-serif; padding: 40px;">
-            <div style="display: flex; justify-content: space-between;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
                 <h1 style="color: #4CAF50;">🌌 BSMeSomeMorePlease Forums</h1>
-                ${req.session.user ? `<span style="color: #888;">Logged in as: <b>${req.session.user}</b></span>` : `<a href="/login" style="color: #888; text-decoration: none;">Admin Login</a>`}
+                <div>
+                    ${req.session.user ? `<span style="color: #888; margin-right: 15px;">User: <b>${req.session.user}</b></span> <a href="/logout" style="color: #f44336; text-decoration: none; font-size: 0.8em;">Logout</a>` : `<a href="/login" style="color: #888; text-decoration: none;">Admin Login</a>`}
+                </div>
             </div>
             <hr style="border: 0.5px solid #333;">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
@@ -116,7 +132,6 @@ app.get('/topic/:id', checkAge, async (req, res) => {
         }
     } catch (err) { console.error(err); }
 
-    // Logic: Only Admins can post to Topic #1. Everyone else can post to everything else.
     let showPostBox = true;
     if (topicId === "1" && !isAdmin) { showPostBox = false; }
 
@@ -124,7 +139,7 @@ app.get('/topic/:id', checkAge, async (req, res) => {
         ? `<form action="/post/${topicId}" method="POST" style="background: #161b22; padding: 20px; border-radius: 10px; border: 1px solid #30363d; max-width: 600px;">
                 <textarea name="content" placeholder="Type your message..." style="width: 100%; height: 80px; background: #0d1117; color: white; border: 1px solid #30363d; padding: 10px;"></textarea>
                 <br><br>
-                <button type="submit" style="background: #238636; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Post Message</button>
+                <button type="submit" style="background: #238636; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">Post Message</button>
            </form>`
         : `<p style="color: #f44336; font-weight: bold;">[ READ ONLY: Only Ghostrider and Boobs can post here ]</p>`;
 
@@ -144,7 +159,6 @@ app.get('/topic/:id', checkAge, async (req, res) => {
 app.post('/post/:id', async (req, res) => {
     const isAdmin = (req.session.user === 'Ghostrider' || req.session.user === 'Boobs');
     if (req.params.id === "1" && !isAdmin) { return res.redirect('/topic/1'); }
-    
     try { await pool.query('INSERT INTO posts (topic_id, content) VALUES ($1, $2)', [req.params.id, req.body.content]); } 
     catch (err) { console.error(err); }
     res.redirect('/topic/' + req.params.id);
