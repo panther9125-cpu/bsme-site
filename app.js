@@ -18,7 +18,7 @@ pool.query(`
   );
 `).then(() => console.log("Database table is ready!"))
   .catch(err => console.error("Table error:", err));
-// Middleware to handle form data
+
 app.use(express.urlencoded({ extended: true }));
 
 // THE AGE GATE
@@ -38,19 +38,26 @@ app.get('/', (req, res) => {
   `);
 });
 
-// THE MAIN FORUM INDEX
+// THE MAIN FORUM INDEX (WITH YOUR TOPICS)
 app.get('/forum', (req, res) => {
-    // PASTE YOUR 45 TOPIC NAMES INSIDE THE BRACKETS BELOW
     const topics = [
-        "Your Topic 1", "Your Topic 2", "Your Topic 3", "Your Topic 4", "Your Topic 5",
-        "Your Topic 6", "Your Topic 7", "Your Topic 8", "Your Topic 9", "Your Topic 10",
-        "Your Topic 11", "Your Topic 12", "Your Topic 13", "Your Topic 14", "Your Topic 15",
-        "Your Topic 16", "Your Topic 17", "Your Topic 18", "Your Topic 19", "Your Topic 20",
-        "Your Topic 21", "Your Topic 22", "Your Topic 23", "Your Topic 24", "Your Topic 25",
-        "Your Topic 26", "Your Topic 27", "Your Topic 28", "Your Topic 29", "Your Topic 30",
-        "Your Topic 31", "Your Topic 32", "Your Topic 33", "Your Topic 34", "Your Topic 35",
-        "Your Topic 36", "Your Topic 37", "Your Topic 38", "Your Topic 39", "Your Topic 40",
-        "Your Topic 41", "Your Topic 42", "Your Topic 43", "Your Topic 44", "Your Topic 45"
+        "IMPORTANT INFORMATION ABOUT THIS SITE (READ ONLY)",
+        "Complaint Department", "Suggestion Box", "Karens", "Cheaters + Narcissists", 
+        "Stupidity is Abundant", "Government + Politics", "Liberals", "Sports", 
+        "Human and AI Call Takers", "Bullies", "Generations", "Commercials", 
+        "YouTube Videos", "Lets Talk Family Guy", "Lets Talk Cats", 
+        "Scammers: Voice, Text, Internet", "Stocks", "Mortgages, Rent and Taxes", 
+        "World Economy", "Electronics", "Illegal Drugs", 
+        "Psychology + Philosophy + Deep Thoughts", "Riddles", "Business Ideas", 
+        "Managers, Supervisors and the Never Ending Hierarchy", "Utility Companies", 
+        "What Would You Do If?", "Dad Jokes", "LBGTQ", "Salesmen and Saleswomen", 
+        "Known Scams (Information Only)", "Bad Immigrants", 
+        "Restaurants, Bars and Other Stores", "News Networks", 
+        "Banks and Other Financial Institutions", 
+        "Landlords, Leasing Agents and Property Managers", 
+        "Pharmaceutical Companies", "Gas Prices", "Insurance", "Big Businesses", 
+        "KIP: Knowledge is Power", "People in General and All Their Silly Quirks", 
+        "Anything Interesting", "All Other BS Not Listed"
     ];
 
     let topicListHtml = topics.map((t, i) => `
@@ -74,7 +81,7 @@ app.get('/forum', (req, res) => {
     `);
 });
 
-// INDIVIDUAL TOPIC PAGE (LOADS DYNAMICALLY)
+// INDIVIDUAL TOPIC PAGE
 app.get('/topic/:id', async (req, res) => {
     const topicId = req.params.id;
     let messagesHtml = '<p style="color: #666;">No messages yet. Be the first!</p>';
@@ -85,16 +92,21 @@ app.get('/topic/:id', async (req, res) => {
         }
     } catch (err) { console.error(err); }
 
-    res.send(`
-        <html>
-        <body style="background-color: #0b0e14; color: white; font-family: sans-serif; padding: 40px;">
-            <h1 style="color: #4CAF50;">Topic #${topicId} Discussion</h1>
-            <div style="background: rgba(255,255,255,0.02); padding: 20px; border-radius: 10px; margin-bottom: 20px;">${messagesHtml}</div>
-            <form action="/post/${topicId}" method="POST" style="background: #161b22; padding: 20px; border-radius: 10px; border: 1px solid #30363d; max-width: 600px;">
+    // Logic to hide post box on Topic #1 (Important Info)
+    const postBox = (topicId == "1") 
+        ? `<p style="color: #f44336; font-weight: bold;">[ READ ONLY: Only Ghostrider and Boobs can post here ]</p>`
+        : `<form action="/post/${topicId}" method="POST" style="background: #161b22; padding: 20px; border-radius: 10px; border: 1px solid #30363d; max-width: 600px;">
                 <textarea name="content" placeholder="Type your message..." style="width: 100%; height: 80px; background: #0d1117; color: white; border: 1px solid #30363d; padding: 10px;"></textarea>
                 <br><br>
                 <button type="submit" style="background: #238636; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Post Message</button>
-            </form>
+           </form>`;
+
+    res.send(`
+        <html>
+        <body style="background-color: #0b0e14; color: white; font-family: sans-serif; padding: 40px;">
+            <h1 style="color: #4CAF50;">Topic Discussion</h1>
+            <div style="background: rgba(255,255,255,0.02); padding: 20px; border-radius: 10px; margin-bottom: 20px;">${messagesHtml}</div>
+            ${postBox}
             <br>
             <button onclick="window.location.href='/forum'" style="background: none; border: 1px solid #333; color: #888; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Back to Forum</button>
         </body>
@@ -103,14 +115,10 @@ app.get('/topic/:id', async (req, res) => {
 });
 
 app.post('/post/:id', async (req, res) => {
-    const topicId = req.params.id;
-    const content = req.body.content;
-    try { await pool.query('INSERT INTO posts (topic_id, content) VALUES ($1, $2)', [topicId, content]); } catch (err) { console.error(err); }
-    res.redirect('/topic/' + topicId);
+    if (req.params.id == "1") return res.redirect('/topic/1'); // Block unauthorized posting
+    try { await pool.query('INSERT INTO posts (topic_id, content) VALUES ($1, $2)', [req.params.id, req.body.content]); } catch (err) { console.error(err); }
+    res.redirect('/topic/' + req.params.id);
 });
 
 app.listen(port, () => { console.log('Server running on port ' + port); });
 
-app.listen(port, () => {
-    console.log('Server running on port ' + port);
-});
