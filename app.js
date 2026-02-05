@@ -17,7 +17,7 @@ app.use(session({
 
 app.use(express.urlencoded({ extended: true }));
 
-// DATABASE STRUCTURE CHECK (Adding Heading Column)
+// DATABASE STRUCTURE CHECK
 pool.query(`
   CREATE TABLE IF NOT EXISTS posts (
     id SERIAL PRIMARY KEY,
@@ -36,7 +36,59 @@ const checkAge = (req, res, next) => {
   else { res.redirect('/'); }
 };
 
-// ... [AGE GATE, LOGIN, AND LOGOUT ROUTES REMAIN THE SAME] ...
+// AGE GATE
+app.get('/', (req, res) => {
+  res.send(`
+    <html>
+    <body style="background-color: #0b0e14; color: white; text-align: center; font-family: sans-serif; padding-top: 100px;">
+        <div style="border: 2px solid #333; display: inline-block; padding: 40px; border-radius: 15px; background: rgba(255,255,255,0.05);">
+            <h1 style="color: #4CAF50;">STOP! Verification Required</h1>
+            <p>You must be 18 or older to view the topics.</p>
+            <form action="/verify-age" method="POST">
+                <button type="submit" style="padding: 15px 30px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">I am 18+ - ENTER FORUM</button>
+            </form>
+        </div>
+    </body>
+    </html>
+  `);
+});
+
+app.post('/verify-age', (req, res) => {
+  req.session.isAdult = true;
+  res.redirect('/forum');
+});
+
+// ADMIN LOGIN
+app.get('/login', (req, res) => {
+  res.send(`
+    <body style="background-color: #0b0e14; color: white; font-family: sans-serif; text-align: center; padding-top: 50px;">
+        <h2>Admin Login</h2>
+        <form action="/login" method="POST" style="display: inline-block; text-align: left; background: #161b22; padding: 20px; border-radius: 10px;">
+            <label>Username:</label><br>
+            <input type="text" name="username" style="margin-bottom: 10px; padding: 8px; border-radius: 5px; border: 1px solid #333; background: #0d1117; color: white;"><br>
+            <label>Password:</label><br>
+            <input type="password" name="password" style="margin-bottom: 20px; padding: 8px; border-radius: 5px; border: 1px solid #333; background: #0d1117; color: white;"><br>
+            <button type="submit" style="width: 100%; padding: 10px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Login</button>
+        </form>
+    </body>
+  `);
+});
+
+app.post('/login', (req, res) => {
+  const { username, password } = req.body;
+  const admins = { 'Ghostrider': 'Ride123!', 'Boobs': 'Boobs456!' };
+  if (admins[username] && admins[username] === password) {
+    req.session.user = username;
+    res.redirect('/forum');
+  } else {
+    res.send('Invalid Credentials. <a href="/login" style="color: #4CAF50;">Try again</a>');
+  }
+});
+
+app.get('/logout', (req, res) => {
+  req.session.user = null;
+  res.redirect('/forum');
+});
 
 // FORUM INDEX WITH COUNTS
 app.get('/forum', checkAge, async (req, res) => {
@@ -86,24 +138,25 @@ app.get('/forum', checkAge, async (req, res) => {
     } catch (err) { console.error(err); res.send("Error loading forum."); }
 });
 
-// TOPIC PAGE (Showing Headings)
+// TOPIC PAGE WITH CYAN HEADINGS
 app.get('/topic/:id', checkAge, async (req, res) => {
     const topicId = req.params.id;
     const isAdmin = (req.session.user === 'Ghostrider' || req.session.user === 'Boobs');
     let messagesHtml = '<p style="color: #666;">No messages yet.</p>';
+    
     try {
         const result = await pool.query("SELECT id, heading, content, TO_CHAR(created_at, 'Mon DD, HH:MI AM') as time FROM posts WHERE topic_id = $1 ORDER BY id DESC", [topicId]);
         if (result.rows.length > 0) {
             messagesHtml = result.rows.map(row => `
-                <div style="border-bottom: 1px solid #333; padding: 15px; margin-bottom: 15px; background: rgba(255,255,255,0.02); border-radius: 8px;">
-                    <div style="display: flex; justify-content: space-between;">
-                        <h3 style="color: #4CAF50; margin: 0 0 10px 0;">${row.heading || 'No Heading'}</h3>
-                        <div>
-                            <span style="color: #888; font-size: 0.75em;">${row.time}</span>
-                            ${isAdmin ? `<form action="/delete-post/${row.id}" method="POST" style="display: inline; margin-left: 10px;"><input type="hidden" name="topicId" value="${topicId}"><button type="submit" style="background: none; border: none; color: #f44336; cursor: pointer; font-size: 0.8em;">[Delete]</button></form>` : ''}
+                <div style="border: 1px solid #30363d; padding: 20px; margin-bottom: 20px; background: #161b22; border-radius: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #30363d; padding-bottom: 10px; margin-bottom: 10px;">
+                        <h2 style="color: #00ffff; margin: 0; font-size: 1.4em; text-transform: uppercase;">${row.heading || 'GENERAL POST'}</h2>
+                        <div style="text-align: right;">
+                            <span style="color: #888; font-size: 0.8em; display: block;">${row.time}</span>
+                            ${isAdmin ? `<form action="/delete-post/${row.id}" method="POST" style="margin-top: 5px;"><input type="hidden" name="topicId" value="${topicId}"><button type="submit" style="background: none; border: none; color: #ff4444; cursor: pointer; font-size: 0.8em;">[ DELETE ]</button></form>` : ''}
                         </div>
                     </div>
-                    <div style="color: #ccc; line-height: 1.5;">${row.content}</div>
+                    <div style="color: #e6edf3; line-height: 1.6; font-size: 1.1em; white-space: pre-wrap;">${row.content}</div>
                 </div>
             `).join('');
         }
@@ -131,7 +184,12 @@ app.get('/topic/:id', checkAge, async (req, res) => {
     `);
 });
 
-// [DELETE AND POST ACTIONS UPDATED FOR HEADING]
+app.post('/delete-post/:postId', async (req, res) => {
+    if (!(req.session.user === 'Ghostrider' || req.session.user === 'Boobs')) return res.status(403).send('Unauthorized');
+    try { await pool.query('DELETE FROM posts WHERE id = $1', [req.params.postId]); } catch (err) { console.error(err); }
+    res.redirect('/topic/' + req.body.topicId);
+});
+
 app.post('/post/:id', async (req, res) => {
     const isAdmin = (req.session.user === 'Ghostrider' || req.session.user === 'Boobs');
     if (req.params.id === "1" && !isAdmin) { return res.redirect('/topic/1'); }
@@ -141,4 +199,4 @@ app.post('/post/:id', async (req, res) => {
     res.redirect('/topic/' + req.params.id);
 });
 
-// ... [DELETE AND LISTEN ROUTES REMAIN THE SAME] ...
+app.listen(port, () => { console.log('Server running on port ' + port); });
