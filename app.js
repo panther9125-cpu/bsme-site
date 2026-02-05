@@ -63,12 +63,17 @@ app.get('/login', (req, res) => {
 
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
-  const admins = { 'Ghostrider': 'Ride123!', 'Boobs': 'Boobs456!' };
+  // --- SET YOUR PASSWORDS HERE ---
+  const admins = { 
+    'Ghostrider': '639.771.161.panther', 
+    'Boobs': 'dak1231' 
+  };
+  
   if (admins[username] && admins[username] === password) {
     req.session.user = username;
     res.redirect('/forum');
   } else {
-    res.send('Invalid Credentials. <a href="/login" style="color: #4CAF50;">Try again</a>');
+    res.send('Invalid Credentials. Note: Names are case-sensitive. <a href="/login" style="color: #4CAF50;">Try again</a>');
   }
 });
 
@@ -114,26 +119,29 @@ app.get('/forum', checkAge, (req, res) => {
     `);
 });
 
-// TOPIC PAGE WITH DELETE BUTTON
+// TOPIC PAGE WITH TIMESTAMPS & DELETE
 app.get('/topic/:id', checkAge, async (req, res) => {
     const topicId = req.params.id;
     const isAdmin = (req.session.user === 'Ghostrider' || req.session.user === 'Boobs');
 
     let messagesHtml = '<p style="color: #666;">No messages yet.</p>';
     try {
-        const result = await pool.query('SELECT id, content FROM posts WHERE topic_id = $1 ORDER BY id DESC', [topicId]);
+        // Updated query to include a human-readable timestamp
+        const result = await pool.query("SELECT id, content, TO_CHAR(created_at, 'Mon DD, YYYY HH:MI AM') as time FROM posts WHERE topic_id = $1 ORDER BY id DESC", [topicId]);
         if (result.rows.length > 0) {
             messagesHtml = result.rows.map(row => `
-                <div style="border-bottom: 1px solid #333; padding: 10px; margin-bottom: 10px; display: flex; justify-content: space-between;">
-                    <div>${row.content}</div>
-                    ${isAdmin ? `<form action="/delete-post/${row.id}" method="POST" style="margin: 0;"><input type="hidden" name="topicId" value="${topicId}"><button type="submit" style="background: none; border: none; color: #f44336; cursor: pointer; font-size: 0.8em;">[Delete]</button></form>` : ''}
+                <div style="border-bottom: 1px solid #333; padding: 10px; margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: #888; font-size: 0.75em;">${row.time}</span>
+                        ${isAdmin ? `<form action="/delete-post/${row.id}" method="POST" style="margin: 0;"><input type="hidden" name="topicId" value="${topicId}"><button type="submit" style="background: none; border: none; color: #f44336; cursor: pointer; font-size: 0.8em;">[Delete]</button></form>` : ''}
+                    </div>
+                    <div style="margin-top: 5px;">${row.content}</div>
                 </div>
             `).join('');
         }
     } catch (err) { console.error(err); }
 
-    let showPostBox = true;
-    if (topicId === "1" && !isAdmin) { showPostBox = false; }
+    let showPostBox = (topicId === "1" && !isAdmin) ? false : true;
 
     const postBox = showPostBox 
         ? `<form action="/post/${topicId}" method="POST" style="background: #161b22; padding: 20px; border-radius: 10px; border: 1px solid #30363d; max-width: 600px;">
@@ -158,20 +166,26 @@ app.get('/topic/:id', checkAge, async (req, res) => {
 
 // ACTION: DELETE POST
 app.post('/delete-post/:postId', async (req, res) => {
-    const isAdmin = (req.session.user === 'Ghostrider' || req.session.user === 'Boobs');
-    if (!isAdmin) return res.status(403).send('Unauthorized');
-    
-    try {
-        await pool.query('DELETE FROM posts WHERE id = $1', [req.params.postId]);
-    } catch (err) { console.error(err); }
+    if (!(req.session.user === 'Ghostrider' || req.session.user === 'Boobs')) return res.status(403).send('Unauthorized');
+    try { await pool.query('DELETE FROM posts WHERE id = $1', [req.params.postId]); } catch (err) { console.error(err); }
     res.redirect('/topic/' + req.body.topicId);
 });
 
+// ACTION: POST MESSAGE
 app.post('/post/:id', async (req, res) => {
     const isAdmin = (req.session.user === 'Ghostrider' || req.session.user === 'Boobs');
     if (req.params.id === "1" && !isAdmin) { return res.redirect('/topic/1'); }
-    try { await pool.query('INSERT INTO posts (topic_id, content) VALUES ($1, $2)', [req.params.id, req.body.content]); } 
-    catch (err) { console.error(err); }
+    try { 
+        // We added created_at NOW() to automatically stamp the time
+        await pool.query('INSERT INTO posts (topic_id, content, created_at) VALUES ($1, $2, NOW())', [req.params.id, req.body.content]); 
+    } catch (err) { 
+        // If the column doesn't exist yet, we fix it automatically
+        if (err.message.includes("column \"created_at\" does not exist")) {
+            await pool.query('ALTER TABLE posts ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
+            await pool.query('INSERT INTO posts (topic_id, content, created_at) VALUES ($1, $2, NOW())', [req.params.id, req.body.content]);
+        }
+        console.error(err); 
+    }
     res.redirect('/topic/' + req.params.id);
 });
 
