@@ -145,7 +145,7 @@ app.get('/topic/:id', checkAge, async (req, res) => {
     let messagesHtml = '<p style="color: #666;">No messages yet.</p>';
     
     try {
-        const result = await pool.query("SELECT id, heading, content, TO_CHAR(created_at, 'Mon DD, HH:MI AM') as time FROM posts WHERE topic_id = $1 ORDER BY id DESC", [topicId]);
+        const result = await pool.query("SELECT id, heading, content, TO_CHAR(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'US/Eastern', 'Mon DD, HH:MI AM') as time FROM posts WHERE topic_id = $1 ORDER BY id DESC", [topicId]);
         if (result.rows.length > 0) {
             messagesHtml = result.rows.map(row => `
                 <div style="border: 1px solid #30363d; padding: 8px 12px; margin-bottom: 6px; background: #161b22; border-radius: 6px;">
